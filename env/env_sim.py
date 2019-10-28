@@ -7,7 +7,7 @@ import cv2
 import math
 
 
-class MyEnv(object):
+class MyEnv:
 
     def __init__(self):
         self.DoF = 7
@@ -50,13 +50,13 @@ class MyEnv(object):
         vrep.simxSetJointPosition(self.ID, handle, value, const_v.simx_opmode_oneshot_wait)
 
     def sample_action(self):
-        return np.random.uniform(self.action_bound,size=self.action_dim)
+        return np.random.uniform(*self.action_bound,size=self.action_dim)
 
     def get_reward(self):
         return
 
     def step(self,action):
-        action=np.clip(action,self.action_bound)
+        action=np.clip(action,*self.action_bound)
         for i in range(self.DoF):
             self.move_joint(self.joint_handles[i],self.a[i])
         img=self.get_image(self.cam_handle)
