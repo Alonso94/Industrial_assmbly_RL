@@ -35,22 +35,16 @@ class ReplyBuffer:
             return self.capacity
         return self.position
 
-class PolicyNetwork:
+class Policy:
     def __init__(self,input_shape,output_dims,hidden_units=128):
         self.input_shape=input_shape
         self.hidden_units=hidden_units
         self.output_dims=output_dims
-        self.build_model()
-
-    def build_model(self):
-        self.model=tf.keras.models.Sequential([
-            tf.keras.layers.Dense(units=self.input_shape,input_shape=[self.input_shape]),
-            tf.keras.layers.Dense(units=self.hidden_units,activation=tf.nn.relu),
-            tf.keras.layers.Dense(units=self.hidden_units, activation=tf.nn.relu)
-            tf.keras.layers.Dense(units=self.output_dims, activation=tf.nn.softmax)
-        ])
-
-    def update_policy(self,states):
+        # layers definition
+        input=tf.keras.layers.Dense(units=self.input_shape,input_shape=[self.input_shape])
+        h1=tf.keras.layers.Dense(units=self.hidden_units,activation=tf.nn.relu)
+        h2=tf.keras.layers.Dense(units=self.hidden_units,activation=tf.nn.relu)
+        mean=tf.keras.layers.Dense(units=self.output_dims,activation=)
 
 
 class SoftActorCritic:
