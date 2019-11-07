@@ -28,11 +28,12 @@ class MyEnv:
             print("Error")
             sys.exit("Error")
 
-        self.cam_handle = self.get_handle('VisionSensor')
+        self.cam_handle = self.get_handle('Camera')
         self.joint_handles = []
         for i in range(self.DoF):
-            tmp = self.get_handle("redundant_joint%d" % (i + 1))
+            tmp = self.get_handle("joint%d" % (i))
             self.joint_handles.append(tmp)
+        self.move_joint(2,1.75)
 
     def get_handle(self, name):
         (check, handle) = vrep.simxGetObjectHandle(self.ID, name, const_v.simx_opmode_oneshot_wait)
@@ -40,28 +41,32 @@ class MyEnv:
             print("Couldn't find %s" % name)
         return handle
 
-    def get_image(self,cam_handle):
-        (code,res,im)=vrep.simxGetVisionSensorImage(self.ID,cam_handle,0,const_v.simx_opmode_streaming)
-        img=np.array(im,dtype=np.uint8)
-        img.resize([32,32,3])
+    def get_image(self, cam_handle):
+        (code, res, im) = vrep.simxGetVisionSensorImage(self.ID, cam_handle, 0, const_v.simx_opmode_streaming)
+        img = np.array(im, dtype=np.uint8)
+        img.resize([32, 32, 3])
         return img
 
-    def move_joint(self,handle,value):
-        vrep.simxSetJointPosition(self.ID, handle, value, const_v.simx_opmode_oneshot_wait)
+    def move_joint(self, num, value):
+        vrep.simxSetJointPosition(self.ID, self.joint_handles[num], value, const_v.simx_opmode_oneshot_wait)
+        time.sleep(1)
 
     def sample_action(self):
-        return np.random.uniform(*self.action_bound,size=self.action_dim)
+        return np.random.uniform(*self.action_bound, size=self.action_dim)
 
     def get_reward(self):
         return
 
-    def step(self,action):
-        action=np.clip(action,*self.action_bound)
+    def step(self, action):
+        action = np.clip(action, *self.action_bound)
         for i in range(self.DoF):
-            self.move_joint(self.joint_handles[i],self.a[i])
-        img=self.get_image(self.cam_handle)
-        reward=self.get_reward()
-        return img,reward,self.done,{}
+            self.move_joint(i, self.a[i])
+        img = self.get_image(self.cam_handle)
+        reward = self.get_reward()
+        return img, reward, self.done, {}
 
     def reset(self):
         return
+
+
+MyEnv()
