@@ -83,3 +83,5 @@ class Rozum:
             self.orientation[i]=orientation[i]
 
 robot=Rozum()
+robot.joint_angles[2]+=20
+robot.send_joint_angles()
