@@ -2,16 +2,16 @@ from pprint import pprint
 from pulseapi import *
 from time import sleep
 
-host = "192.168.1.87:8081"
+host = "10.10.10.20:8081"
 robot = RobotPulse(host)
 versions=Versions(host)
-
-print(versions.robot_software())
 
 SPEED = 10  # set the desired speed
 TCP_VELOCITY_1CM = 0.01
 robot.open_gripper()
 robot.close_gripper()
+
+print("start\n")
 try:
     while True:
         # robot.set_position(position([-0.079, 0.236, 0.924], [-1.5184364318847656, -0.4188790321350098, 3.0368728637695312]), SPEED, MT_JOINT)
