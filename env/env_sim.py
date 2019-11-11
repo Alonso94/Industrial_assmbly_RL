@@ -10,7 +10,7 @@ import math
 class MyEnv:
 
     def __init__(self):
-        self.DoF = 7
+        self.DoF = 6
         self.action_bound = [-1, 1]
         self.action_dim = self.DoF * 2
         self.state_dim = 19
@@ -33,7 +33,9 @@ class MyEnv:
         for i in range(self.DoF):
             tmp = self.get_handle("joint%d" % (i))
             self.joint_handles.append(tmp)
-        self.move_joint(3,0.2)
+        self.move_joint(2,0.5)
+        self.tip_handle=self.get_handle("Dummy")
+        print(vrep.simxGetObjectPosition(self.ID,self.tip_handle,-1,const_v.simx_opmode_oneshot_wait))
 
     def get_handle(self, name):
         (check, handle) = vrep.simxGetObjectHandle(self.ID, name, const_v.simx_opmode_oneshot_wait)
