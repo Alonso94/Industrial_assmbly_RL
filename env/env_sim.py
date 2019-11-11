@@ -33,7 +33,7 @@ class MyEnv:
         for i in range(self.DoF):
             tmp = self.get_handle("joint%d" % (i))
             self.joint_handles.append(tmp)
-        print(self.get_angle_positions())
+        self.move_joint(3,0.2)
 
     def get_handle(self, name):
         (check, handle) = vrep.simxGetObjectHandle(self.ID, name, const_v.simx_opmode_oneshot_wait)
@@ -53,8 +53,10 @@ class MyEnv:
 
     def get_angle_positions(self):
         poses=[]
+        torques=[]
         for i in range(self.DoF):
             poses.append(vrep.simxGetJointPosition(self.ID, self.joint_handles[i], const_v.simx_opmode_oneshot_wait))
+            torques.append(vrep.simxGetJointForce(self.ID,self.joint_handles[i],const_v.simx_opmode_oneshot_wait))
         return poses
 
     def sample_action(self):
