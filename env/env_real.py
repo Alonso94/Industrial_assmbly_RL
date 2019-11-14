@@ -92,9 +92,9 @@ class VideoCapture:
     def __init__(self, name):
         self.cap = cv2.VideoCapture(name)
         self.q = queue.Queue()
-        t = Thread(target=self._reader)
+        self.t = Thread(target=self._reader)
         # t.daemon = True
-        t.start()
+        self.t.start()
 
     # read frames as soon as they are available, keeping only most recent one
     def _reader(self):
@@ -158,7 +158,6 @@ class rozum_real:
         #TODO define reward
         return reward,done
 
-robot=Rozum()
-robot.recover()
-robot.update_joint_angles([-180,-90,-90,-90,90,0])
-robot.send_joint_angles()
+    def stop(self):
+        self.cam.t.join()
+        self.currents_thread.join()

@@ -4,7 +4,6 @@ from matplotlib import pyplot as plt
 
 cam = cv2.VideoCapture(2)
 print(cam.isOpened())
-grs=[]
 while(1):
     (_, im) = cam.read()
     gr=cv2.cvtColor(im,cv2.COLOR_RGB2GRAY)
@@ -13,8 +12,7 @@ while(1):
     if k==27:
         break
     if k==ord('a'):
-        print("add_image")
-        grs.append(gr)
+        cv2.imwrite('rozum_real.png')
 
 
 
