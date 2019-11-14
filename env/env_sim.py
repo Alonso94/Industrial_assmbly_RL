@@ -7,7 +7,7 @@ import cv2
 import math
 
 
-class MyEnv:
+class rozum_sim:
 
     def __init__(self):
         self.DoF = 6
