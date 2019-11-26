@@ -4,6 +4,7 @@ from time import sleep
 from threading import Thread, Semaphore
 import queue
 import cv2
+import numpy as np
 
 host = "10.10.10.20:8081"
 robot = RobotPulse(host)
@@ -41,17 +42,25 @@ class VideoCapture:
             # bu = (105, 255, 255)
             # gl = (55, 0, 0)
             # gu = (60, 255, 255)
-            bl = (95, 80, 50)
+            bl = (80, 0, 0)
             bu = (120, 255, 255)
-            gl = (60, 80, 50)
-            gu = (70, 255, 255)
+            gl = (55, 50, 50)
+            gu = (80, 255, 255)
             ol1=(0,50,50)
             ou1=(15,255,255)
             ol2 = (165, 50, 50)
             ou2 = (180, 255, 255)
+            er_kernel = np.ones((5, 5), np.uint8)
+            di_kernel = np.ones((12, 12), np.uint8)
             goal1 = cv2.inRange(hsv, gl, gu)
+            goal1 = cv2.erode(goal1, er_kernel,iterations=2)
+            goal1=cv2.dilate(goal1,di_kernel,iterations=2)
             goal2=cv2.inRange(hsv, bl, bu)
+            goal2 = cv2.erode(goal2, er_kernel,iterations=1)
+            goal2 = cv2.dilate(goal2, di_kernel,iterations=3)
             goal3=cv2.inRange(hsv, ol1, ou1)+cv2.inRange(hsv, ol2, ou2)
+            goal3 = cv2.erode(goal3, er_kernel,iterations=2)
+            goal3 = cv2.dilate(goal3, di_kernel,iterations=2)
             cv2.imshow("goal1",goal1)
             cv2.imshow("goal2",goal2)
             cv2.imshow("goal3", goal3)

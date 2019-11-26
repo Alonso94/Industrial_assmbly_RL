@@ -116,6 +116,16 @@ class rozum_real:
         self.action_dim = 6
         self.cam = VideoCapture(2)
 
+        self.goal_l= (80, 0, 0)
+        self.goal_u= (120, 255, 255)
+        self.cube_l = (55, 50, 50)
+        self.cube_u = (80, 255, 255)
+        self.er_kernel = np.ones((5, 5), np.uint8)
+        self.di_kernel = np.ones((12, 12), np.uint8)
+        self.task_part=0
+
+
+
         self.currents_thread=Thread(target=self.current_reader)
         self.currents_thread.daemon=True
         self.currents_thread.start()
@@ -140,9 +150,7 @@ class rozum_real:
         self.robot.send_joint_angles()
         currents=self.currents
         img=self.cam.read()
-        cv2.imshow("1",img)
-        cv2.waitKey(25)
-        reward,done=self.get_reward()
+        reward,done=self.get_reward(img)
         return img,reward,done,{}
 
     def reset(self):
@@ -152,9 +160,21 @@ class rozum_real:
         currents=self.currents
         return img
 
-    def get_reward(self):
+    def image_processeing(self,img,lower,upper,num_iter):
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        binary = cv2.inRange(hsv, lower, upper)
+        binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[1])
+        binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[2])
+        return binary
+
+    def get_reward(self,img):
         reward=-0.1
         done=False
+        if self.task_part==0:
+            processed_img=self.image_processeing(img,self.goal_l,self.goal_u,[1,3])
+        else:
+            processed_img = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
+
         #TODO define reward
         return reward,done
 
