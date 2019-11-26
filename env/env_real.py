@@ -2,13 +2,8 @@ import requests
 import json
 import cv2
 import numpy as np
-from threading import Thread
+from threading import Thread, Semaphore
 import queue
-import time
-from collections import namedtuple
-import time
-from getpass import getpass
-
 
 class Rozum:
     def __init__(self):
@@ -92,8 +87,9 @@ class VideoCapture:
     def __init__(self, name):
         self.cap = cv2.VideoCapture(name)
         self.q = queue.Queue()
+
         self.t = Thread(target=self._reader)
-        # t.daemon = True
+        self.t.daemon = True
         self.t.start()
 
     # read frames as soon as they are available, keeping only most recent one
@@ -121,13 +117,16 @@ class rozum_real:
         self.cam = VideoCapture(2)
 
         self.currents_thread=Thread(target=self.current_reader)
+        self.currents_thread.daemon=True
         self.currents_thread.start()
 
         self.robot.open_gripper()
         self.init_pose, _ = self.robot.get_position()
-        self.init_angles = [-180,-90,-90,-90,90,0]
+        # self.init_angles = [-200,-90,-90,-90,90,0]
+        self.init_angles = [-210,-105,-20,-145,90,0]
         self.reset()
         self.angles = self.init_angles
+        print(self.angles)
 
     def current_reader(self):
         while True:
@@ -148,6 +147,7 @@ class rozum_real:
 
     def reset(self):
         self.robot.update_joint_angles(self.init_angles)
+        self.robot.send_joint_angles()
         img=self.cam.read()
         currents=self.currents
         return img
@@ -158,6 +158,4 @@ class rozum_real:
         #TODO define reward
         return reward,done
 
-    def stop(self):
-        self.cam.t.join()
-        self.currents_thread.join()
+env=rozum_real()
