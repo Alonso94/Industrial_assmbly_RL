@@ -123,7 +123,7 @@ class rozum_real:
         self.robot.open_gripper()
         self.init_pose, _ = self.robot.get_position()
         # self.init_angles = [-200,-90,-90,-90,90,0]
-        self.init_angles = [-210,-105,-20,-145,90,0]
+        self.init_angles = [-210,-110,0,-160,90,-35]
         self.reset()
         self.angles = self.init_angles
         print(self.angles)
@@ -158,4 +158,5 @@ class rozum_real:
         #TODO define reward
         return reward,done
 
-env=rozum_real()
+robot=Rozum()
+robot.close_gripper()

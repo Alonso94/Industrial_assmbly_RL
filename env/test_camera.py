@@ -22,10 +22,10 @@ print(cam.isOpened())
 #         break
 # cam.release()
 # out.release()
-# while(1):
-_,im=cam.read()
-cv2.imshow("0",im)
-cv2.waitKey(1)
+while(1):
+    _,im=cam.read()
+    cv2.imshow("0",im)
+    cv2.waitKey(1)
 hsv=cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
 h=hsv.copy()
 h[:,:,1]=0
