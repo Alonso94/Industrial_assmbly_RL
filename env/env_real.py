@@ -115,6 +115,8 @@ class rozum_real:
         self.action_bound = [-1, 1]
         self.action_dim = 6
         self.cam = VideoCapture(2)
+        self.w = self.cam.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        self.h = self.cam.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         self.goal_l= (80, 0, 0)
         self.goal_u= (120, 255, 255)
@@ -123,8 +125,10 @@ class rozum_real:
         self.er_kernel = np.ones((5, 5), np.uint8)
         self.di_kernel = np.ones((12, 12), np.uint8)
         self.task_part=0
-
-
+        self.part_1_center=np.array([300.0,335.0])
+        self.part_2_center=np.array([320.0,290.0])
+        self.part_1_area=25.0
+        self.part_2_area=75.0
 
         self.currents_thread=Thread(target=self.current_reader)
         self.currents_thread.daemon=True
@@ -165,17 +169,48 @@ class rozum_real:
         binary = cv2.inRange(hsv, lower, upper)
         binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[1])
         binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[2])
-        return binary
+        cnt, _ = cv2.findContours(binary, 1, 1)
+        cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
+        center=0
+        area_percentage=0
+        rotation=0
+        if len(cnt) > 0:
+            rect = cv2.minAreaRect(cnt[0])
+            angle = rect[2]
+            if angle < -45:
+                angle += 90
+            box = cv2.boxPoints(rect)
+            box = np.int0(box)
+            center = np.average(box, axis=0)
+            area = cv2.contourArea(cnt[0])
+            area_percentage=area/(self.w*self.h)
+            rotation = angle
+        return center,area_percentage,rotation
 
     def get_reward(self,img):
         reward=-0.1
         done=False
         if self.task_part==0:
-            processed_img=self.image_processeing(img,self.goal_l,self.goal_u,[1,3])
+            center,area,rotation=self.image_processeing(img,self.goal_l,self.goal_u,[2,2])
+            distance=np.linalg.norm(center-self.part_1_center)
+            area_difference=abs(area-self.part_1_area)
+            if distance<3 and area_difference<2 and rotation<1:
+                self.task_part=1
+                reward+=2
+                return reward,done
         else:
-            processed_img = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
+            center,area,rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
+            distance = np.linalg.norm(center - self.part_2_center)
+            area_difference = abs(area - self.part_2_area)
+            if distance<3 and area_difference<2 and rotation<1:
+                reward+=2
+                done=True
+                return reward,done
+        reward-=(distance+area_difference+rotation)
+        return  reward,done
+
 
         #TODO define reward
         return reward,done
 
-robot=rozum_real()
+print(np.linalg.norm(np.array([300.0,335.0])-np.array([302.0,337.0])))
