@@ -127,8 +127,8 @@ class rozum_real:
         self.task_part=0
         self.part_1_center=np.array([300.0,335.0])
         self.part_2_center=np.array([320.0,290.0])
-        self.part_1_area=25.0
-        self.part_2_area=75.0
+        self.part_1_area=0.25
+        self.part_2_area=0.75
 
         self.currents_thread=Thread(target=self.current_reader)
         self.currents_thread.daemon=True
@@ -167,8 +167,8 @@ class rozum_real:
     def image_processeing(self,img,lower,upper,num_iter):
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         binary = cv2.inRange(hsv, lower, upper)
-        binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[1])
-        binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[2])
+        binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[0])
+        binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[1])
         cnt, _ = cv2.findContours(binary, 1, 1)
         cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
         center=0
@@ -184,33 +184,30 @@ class rozum_real:
             center = np.average(box, axis=0)
             area = cv2.contourArea(cnt[0])
             area_percentage=area/(self.w*self.h)
-            rotation = angle
+            rotation = abs(angle)
+        # print(center)
         return center,area_percentage,rotation
 
-    def get_reward(self,img):
-        reward=-0.1
-        done=False
-        if self.task_part==0:
-            center,area,rotation=self.image_processeing(img,self.goal_l,self.goal_u,[2,2])
-            distance=np.linalg.norm(center-self.part_1_center)
-            area_difference=abs(area-self.part_1_area)
-            if distance<3 and area_difference<2 and rotation<1:
-                self.task_part=1
-                reward+=2
-                return reward,done
+    def get_reward(self, img):
+        reward = -0.1
+        done = False
+        if self.task_part == 0:
+            center, area, rotation = self.image_processeing(img, self.goal_l, self.goal_u, [2, 2])
+            distance = np.linalg.norm(center - self.part_1_center)
+            area_difference = abs(area - self.part_1_area)
+            # print(distance, area_difference, rotation)
+            if distance < 3 and area_difference < 2 and rotation < 1:
+                self.task_part = 1
+                reward += 2
+                return reward, done
         else:
-            center,area,rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
+            center, area, rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
             distance = np.linalg.norm(center - self.part_2_center)
             area_difference = abs(area - self.part_2_area)
-            if distance<3 and area_difference<2 and rotation<1:
-                reward+=2
-                done=True
-                return reward,done
-        reward-=(distance+area_difference+rotation)
-        return  reward,done
-
-
-        #TODO define reward
-        return reward,done
-
-print(np.linalg.norm(np.array([300.0,335.0])-np.array([302.0,337.0])))
+            # print(distance,area_difference,rotation)
+            if distance < 5 and area_difference < 5 and rotation < 1:
+                reward += 2
+                done = True
+                return reward, done
+        reward -= (0.01 * distance + 0.05 * area_difference + 0.1 * rotation)
+        return reward, done
