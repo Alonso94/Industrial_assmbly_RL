@@ -136,7 +136,7 @@ class rozum_real:
         self.init_angles = [-210,-110,0,-160,90,-35]
         self.reset()
         self.angles = self.init_angles
-        print(self.angles)
+        # print(self.angles)
 
     def current_reader(self):
         while True:
@@ -178,5 +178,4 @@ class rozum_real:
         #TODO define reward
         return reward,done
 
-robot=Rozum()
-robot.close_gripper()
+robot=rozum_real()

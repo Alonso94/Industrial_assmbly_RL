@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 host = "10.10.10.20:8081"
-robot = RobotPulse(host)
+# robot = RobotPulse(host)
 
 SPEED = 10
 # bufferless VideoCapture
@@ -32,7 +32,7 @@ class VideoCapture:
                     self.q.get_nowait()  # discard previous (unprocessed) frame
                 except queue.Empty:
                     pass
-            cv2.imshow("1",frame)
+            # cv2.imshow("1",frame)
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             h = hsv.copy()
             h[:, :, 1] = 0
@@ -43,35 +43,55 @@ class VideoCapture:
             # gl = (55, 0, 0)
             # gu = (60, 255, 255)
             bl = (80, 0, 0)
-            bu = (120, 255, 255)
+            bu = (110, 255, 255)
             gl = (55, 50, 50)
             gu = (80, 255, 255)
-            ol1=(0,50,50)
-            ou1=(15,255,255)
-            ol2 = (165, 50, 50)
-            ou2 = (180, 255, 255)
-            er_kernel = np.ones((5, 5), np.uint8)
-            di_kernel = np.ones((12, 12), np.uint8)
+            # ol1=(0,50,50)
+            # ou1=(15,255,255)
+            # ol2 = (165, 50, 50)
+            # ou2 = (180, 255, 255)
+            er_kernel = np.ones((7, 7), np.uint8)
+            di_kernel = np.ones((10, 10), np.uint8)
             goal1 = cv2.inRange(hsv, gl, gu)
             goal1 = cv2.erode(goal1, er_kernel,iterations=2)
             goal1=cv2.dilate(goal1,di_kernel,iterations=2)
             goal2=cv2.inRange(hsv, bl, bu)
-            goal2 = cv2.erode(goal2, er_kernel,iterations=1)
-            goal2 = cv2.dilate(goal2, di_kernel,iterations=3)
-            goal3=cv2.inRange(hsv, ol1, ou1)+cv2.inRange(hsv, ol2, ou2)
-            goal3 = cv2.erode(goal3, er_kernel,iterations=2)
-            goal3 = cv2.dilate(goal3, di_kernel,iterations=2)
+            goal2 = cv2.erode(goal2, er_kernel,iterations=2)
+            goal2 = cv2.dilate(goal2, di_kernel,iterations=2)
+            # goal3=cv2.inRange(hsv, ol1, ou1)+cv2.inRange(hsv, ol2, ou2)
+            # goal3 = cv2.erode(goal3, er_kernel,iterations=2)
+            # goal3 = cv2.dilate(goal3, di_kernel,iterations=2)
+            cnt, _ = cv2.findContours(goal1, 1, 1)
+            cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
+            if len(cnt) > 0:
+                rect = cv2.minAreaRect(cnt[0])
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                cv2.drawContours(frame, [box], 0, (0, 255, 0), 2)
+            cnt,_=cv2.findContours(goal2,1,1)
+            cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
+            if len(cnt)>0:
+                rect = cv2.minAreaRect(cnt[0])
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                print(box)
+                center_x=(box[0,0]+box[1,0]+box[2,0]+box[3,0])/4
+                center_y = (box[1, 0] + box[1, 0]) / 2
+                print(center_x)
+                cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+            cv2.imshow("1",frame)
             cv2.imshow("goal1",goal1)
             cv2.imshow("goal2",goal2)
-            cv2.imshow("goal3", goal3)
+            # cv2.imshow("goal3", goal3)
             cv2.waitKey(25)
             self.q.put(frame)
 
     def read(self):
         return self.q.get()
 VideoCapture(2)
-robot.open_gripper()
-sleep(25)
+# robot.open_gripper()
+while(1):
+    sleep(1)
 # try:
 #     # while True:
 #     # robot.set_position(position([-0.377, 0.225, 0.365], [3.1241393089294434, 0.0349065847694874, -1.5533430576324463]), SPEED, MT_JOINT)
