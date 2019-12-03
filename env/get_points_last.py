@@ -145,7 +145,7 @@ class VideoCapture:
         return self.q.get()
 
     def close(self):
-        self.out.release()
+        # self.out.release()
         self.cap.release()
 
 try:

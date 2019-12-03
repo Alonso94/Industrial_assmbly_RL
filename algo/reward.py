@@ -1,16 +1,14 @@
 import abc
 import tensorflow as tf
-from gpflow import Parameter as Param
+from gpflow import Parameterized, Param, params_as_tensors, settings
 import numpy as np
 
-from tensorflow import linalg as tfl
-from gpflow.config import default_float
-float_type = default_float()
+float_type = settings.dtypes.float_type
 
 
-class Reward(tf.Module):
+class Reward(Parameterized):
     def __init__(self):
-        super().__init__()
+        Parameterized.__init__(self)
 
     @abc.abstractmethod
     def compute_reward(self, m, s):
@@ -30,6 +28,7 @@ class ExponentialReward(Reward):
         else:
             self.t = Param(np.zeros((1, state_dim)), trainable=False)
 
+    @params_as_tensors
     def compute_reward(self, m, s):
         '''
         Reward function, calculating mean and variance of rewards, given
@@ -48,18 +47,18 @@ class ExponentialReward(Reward):
         SW = s @ self.W
 
         iSpW = tf.transpose(
-                tfl.solve( (tf.eye(self.state_dim, dtype=float_type) + SW),
+                tf.matrix_solve( (tf.eye(self.state_dim, dtype=float_type) + SW),
                 tf.transpose(self.W), adjoint=True))
 
         muR = tf.exp(-(m-self.t) @  iSpW @ tf.transpose(m-self.t)/2) / \
-                tf.sqrt( tfl.det(tf.eye(self.state_dim, dtype=float_type) + SW) )
+                tf.sqrt( tf.linalg.det(tf.eye(self.state_dim, dtype=float_type) + SW) )
 
         i2SpW = tf.transpose(
-                tfl.solve( (tf.eye(self.state_dim, dtype=float_type) + 2*SW),
+                tf.matrix_solve( (tf.eye(self.state_dim, dtype=float_type) + 2*SW),
                 tf.transpose(self.W), adjoint=True))
 
         r2 =  tf.exp(-(m-self.t) @ i2SpW @ tf.transpose(m-self.t)) / \
-                tf.sqrt( tfl.det(tf.eye(self.state_dim, dtype=float_type) + 2*SW) )
+                tf.sqrt( tf.linalg.det(tf.eye(self.state_dim, dtype=float_type) + 2*SW) )
 
         sR = r2 - muR @ muR
         muR.set_shape([1, 1])

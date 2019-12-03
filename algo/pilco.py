@@ -4,15 +4,14 @@ import gpflow
 import pandas as pd
 import time
 
-from algo.mgpr import MGPR
-from algo.controller import RbfController
-from algo.reward import ExponentialReward
+from mgpr import MGPR
+from controller import RbfController
+from reward import ExponentialReward
 
-from gpflow.config import default_float
-float_type = default_float()
+float_type = gpflow.settings.dtypes.float_type
 
 
-class PILCO(tf.Module):
+class PILCO(gpflow.models.Model):
     def __init__(self, X, Y, num_induced_points=None, horizon=100, controller=None,
                 reward=None, m_init=None, S_init=None, name=None):
         super(PILCO, self).__init__(name)
@@ -26,6 +25,7 @@ class PILCO(tf.Module):
         self.S_init = np.diag(np.ones(self.state_dim) * 0.1)
         self.optimizer = None
 
+    @gpflow.name_scope('likelihood')
     def _build_likelihood(self):
         # This is for tuning controller's parameters
         reward = self.predict(self.m_init, self.S_init, self.horizon)[2]
@@ -59,26 +59,22 @@ class PILCO(tf.Module):
         '''
         start = time.time()
         if not self.optimizer:
-            self.optimizer = gpflow.optimizers.Scipy()
+            self.optimizer = gpflow.train.ScipyOptimizer(method="L-BFGS-B")
             start = time.time()
-            #TODO
             self.optimizer.minimize(self, maxiter=maxiter)
             end = time.time()
             print("Controller's optimization: done in %.1f seconds with reward=%.3f." % (end - start, self.compute_reward()))
+        session = self.optimizer._model.enquire_session(None)
         start = time.time()
-        # def optimization_step(model: gpflow.models.SVGP, batch: Tuple[tf.Tensor, tf.Tensor]):
-        #     with tf.GradientTape(watch_accessed_variables=False) as tape:
-        #         tape.watch(model.trainable_variables)
-        #         elbo = model.elbo(*batch)
-        #         grads = tape.gradient(elbo, model.trainable_variables)
-        #     self.optimizer.apply_gradients(zip(grads, model.trainable_variables))
-        #TODO
-        self.optimizer.minimize(self, maxiter=maxiter)
+        self.optimizer._optimizer.minimize(session=session,
+                    feed_dict=self.optimizer._gen_feed_dict(self.optimizer._model, None),
+                    step_callback=None)
         end = time.time()
         print("Controller's optimization: done in %.1f seconds with reward=%.3f." % (end - start, self.compute_reward()))
-        best_parameters = self.read_values()
+        best_parameters = self.read_values(session=session)
         self.assign(best_parameters)
 
+    @gpflow.autoflow((float_type,[None, None]))
     def compute_action(self, x_m):
         return self.controller.compute_action(x_m, tf.zeros([self.state_dim, self.state_dim], float_type))[0]
 
@@ -119,5 +115,6 @@ class PILCO(tf.Module):
         M_x.set_shape([1, self.state_dim]); S_x.set_shape([self.state_dim, self.state_dim])
         return M_x, S_x
 
+    @gpflow.autoflow()
     def compute_reward(self):
         return self._build_likelihood()

@@ -199,6 +199,7 @@ class rozum_real:
             if distance < 3 and area_difference < 2 and rotation < 1:
                 self.task_part = 1
                 reward += 2
+                self.robot.close_gripper()
                 return reward, done
         else:
             center, area, rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
@@ -208,6 +209,7 @@ class rozum_real:
             if distance < 5 and area_difference < 5 and rotation < 1:
                 reward += 2
                 done = True
+                self.robot.open_gripper()
                 return reward, done
         reward -= (0.01 * distance + 0.05 * area_difference + 0.1 * rotation)
         return reward, done

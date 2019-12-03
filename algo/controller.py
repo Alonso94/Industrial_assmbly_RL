@@ -2,11 +2,9 @@ import tensorflow as tf
 import numpy as np
 import gpflow
 
-from tensorflow import linalg as tfl
-from algo.mgpr import MGPR
-from gpflow.config import default_float
-float_type = default_float()
-
+from mgpr import MGPR
+from gpflow import settings
+float_type = settings.dtypes.float_type
 
 def squash_sin(m, s, max_action=None):
     '''
@@ -22,22 +20,22 @@ def squash_sin(m, s, max_action=None):
     else:
         max_action = max_action * tf.ones((1,k), dtype=float_type)
 
-    M = max_action * tf.exp(-tfl.diag_part(s) / 2) * tf.sin(m)
+    M = max_action * tf.exp(-tf.diag_part(s) / 2) * tf.sin(m)
 
-    lq = -(tfl.diag_part(s)[:, None] + tfl.diag_part(s)[None, :]) / 2
+    lq = -(tf.diag_part(s)[:, None] + tf.diag_part(s)[None, :]) / 2
     q = tf.exp(lq)
     S = (tf.exp(lq + s) - q) * tf.cos(tf.transpose(m) - m) \
         - (tf.exp(lq - s) - q) * tf.cos(tf.transpose(m) + m)
     S = max_action * tf.transpose(max_action) * S / 2
 
-    C = max_action * tfl.diag( tf.exp(-tfl.diag_part(s)/2) * tf.cos(m))
+    C = max_action * tf.diag( tf.exp(-tf.diag_part(s)/2) * tf.cos(m))
     return M, S, tf.reshape(C,shape=[k,k])
 
-class FakeGPR(tf.Module):
+class FakeGPR(gpflow.Parameterized):
     def __init__(self, X, Y, kernel):
-        tf.Module.__init__(self)
-        self.X = gpflow.Parameter(X)
-        self.Y = gpflow.Parameter(Y)
+        gpflow.Parameterized.__init__(self)
+        self.X = gpflow.Param(X)
+        self.Y = gpflow.Param(Y)
         self.kern = kernel
         self.likelihood = gpflow.likelihoods.Gaussian()
 
@@ -58,12 +56,9 @@ class RbfController(MGPR):
             self.max_action = max_action
 
     def create_models(self, X, Y):
-        #TODO
-        self.models = gpflow.utilities.
-        param_dict = gpflow.utilities.leaf_components(self.models)
-        gpflow.utilities.multiple_assign(self.models, param_dict)
+        self.models = gpflow.params.ParamList([])
         for i in range(self.num_outputs):
-            kern = gpflow.kernels.RBF(ard=True)
+            kern = gpflow.kernels.RBF(input_dim=X.shape[1], ARD=True)
             self.models.append(FakeGPR(X, Y[:, i:i+1], kern))
 
     def compute_action(self, m, s, squash=True):
@@ -74,7 +69,7 @@ class RbfController(MGPR):
         '''
         iK, beta = self.calculate_factorizations()
         M, S, V = self.predict_given_factorizations(m, s, 0.0 * iK, beta)
-        S = S - tfl.diag(self.variance - 1e-6)
+        S = S - tf.diag(self.variance - 1e-6)
         if squash:
             M, S, V2 = squash_sin(M, S, self.max_action)
             V = V @ V2
