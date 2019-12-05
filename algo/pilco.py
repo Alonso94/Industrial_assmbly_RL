@@ -4,9 +4,9 @@ import gpflow
 import pandas as pd
 import time
 
-from mgpr import MGPR
-from controller import RbfController
-from reward import ExponentialReward
+from algo.mgpr import MGPR
+from algo.controller import RbfController
+from algo.reward import ExponentialReward
 
 float_type = gpflow.settings.dtypes.float_type
 
@@ -37,7 +37,7 @@ class PILCO(gpflow.models.Model):
         '''
         self.mgpr.optimize(restarts=restarts)
         # Print the resulting model parameters
-        lengthscales = {}; variances = {}; noises = {};
+        lengthscales = {}; variances = {}; noises = {}
         i = 0
         for model in self.mgpr.models:
             lengthscales['GP' + str(i)] = model.kern.lengthscales.value

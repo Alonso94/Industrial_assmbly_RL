@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import gpflow
 
-from mgpr import MGPR
+from algo.mgpr import MGPR
 from gpflow import settings
 float_type = settings.dtypes.float_type
 

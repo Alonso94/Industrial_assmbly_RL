@@ -16,7 +16,6 @@ class VideoCapture:
     def __init__(self, name):
         self.cap = cv2.VideoCapture(name)
         self.q = queue.Queue()
-
         self.t = Thread(target=self._reader)
         self.t.daemon = True
         self.t.start()
@@ -32,19 +31,19 @@ class VideoCapture:
                     self.q.get_nowait()  # discard previous (unprocessed) frame
                 except queue.Empty:
                     pass
-            # cv2.imshow("1",frame)
+            cv2.imshow("0",frame)
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             h = hsv.copy()
+            h[:, :, 0] = 0
             h[:, :, 1] = 0
-            h[:, :, 2] = 0
             cv2.imshow("2", h)
             # bl = (85, 0, 0)
             # bu = (105, 255, 255)
             # gl = (55, 0, 0)
             # gu = (60, 255, 255)
-            bl = (80, 0, 0)
+            bl = (80, 60, 0)
             bu = (110, 255, 255)
-            gl = (55, 50, 50)
+            gl = (55, 50, 0)
             gu = (80, 255, 255)
             # ol1=(0,50,50)
             # ou1=(15,255,255)

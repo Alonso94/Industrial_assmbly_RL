@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 from threading import Thread, Semaphore
 import queue
+import time
+import math
 
 class Rozum:
     def __init__(self):
@@ -112,23 +114,25 @@ class VideoCapture:
 class rozum_real:
     def __init__(self):
         self.robot = Rozum()
-        self.action_bound = [-1, 1]
+        self.action_bound = [-2, 2]
         self.action_dim = 6
         self.cam = VideoCapture(2)
         self.w = self.cam.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.h = self.cam.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-        self.goal_l= (80, 0, 0)
-        self.goal_u= (120, 255, 255)
-        self.cube_l = (55, 50, 50)
+        self.goal_l= (80, 40, 0)
+        self.goal_u= (110, 255, 255)
+        self.cube_l = (55, 50, 0)
         self.cube_u = (80, 255, 255)
-        self.er_kernel = np.ones((5, 5), np.uint8)
-        self.di_kernel = np.ones((12, 12), np.uint8)
+        self.er_kernel = np.ones((7, 7), np.uint8)
+        self.di_kernel = np.ones((10, 10), np.uint8)
         self.task_part=0
-        self.part_1_center=np.array([300.0,335.0])
-        self.part_2_center=np.array([320.0,290.0])
+        self.part_1_center=np.array([300.0/640,335.0/480])
+        self.part_2_center=np.array([320.0/640,290.0/480])
         self.part_1_area=0.25
         self.part_2_area=0.75
+        self.target=np.array([300.0/640,335.0/480,0.25,0.0])
+        self.count=0
 
         self.currents_thread=Thread(target=self.current_reader)
         self.currents_thread.daemon=True
@@ -137,14 +141,17 @@ class rozum_real:
         self.robot.open_gripper()
         self.init_pose, _ = self.robot.get_position()
         # self.init_angles = [-200,-90,-90,-90,90,0]
-        self.init_angles = [-210,-110,0,-160,90,-35]
+        self.init_angles = [-210.0,-110.0,0.0,-160.0,90.0,-35.0]
         self.reset()
-        self.angles = self.init_angles
+        self.angles = self.init_angles.copy()
         # print(self.angles)
 
     def current_reader(self):
         while True:
             self.currents = self.robot.get_joints_current()
+
+    def sample_action(self):
+        return np.random.uniform(*self.action_bound, size=self.action_dim)
 
     def step(self, action):
         action = np.clip(action, *self.action_bound)
@@ -152,28 +159,36 @@ class rozum_real:
             self.angles[i] += action[i]
         self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
-        currents=self.currents
         img=self.cam.read()
-        reward,done=self.get_reward(img)
-        return img,reward,done,{}
+        obs, reward, done = self.get_reward(img)
+        angles = self.robot.get_joint_angles()
+        # s = np.concatenate((obs,angles), axis=None)
+        return obs, reward, done, {}
 
     def reset(self):
-        self.robot.update_joint_angles(self.init_angles)
+        self.task_part = 0
+        self.angles=self.init_angles.copy()
+        self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
         img=self.cam.read()
-        currents=self.currents
-        return img
+        currents=self.currents.copy()
+        center, area, rotation = self.image_processeing(img, self.goal_l, self.goal_u, [2, 2])
+        obs = np.array([center[0]/640, center[1]/480, area, rotation])
+        # s = np.concatenate((obs,self.angles), axis=None)
+        return obs
 
-    def image_processeing(self,img,lower,upper,num_iter):
+    def image_processeing(self, img, lower, upper, num_iter):
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         binary = cv2.inRange(hsv, lower, upper)
         binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[0])
         binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[1])
+        cv2.imshow("1",binary)
+        cv2.waitKey(1)
         cnt, _ = cv2.findContours(binary, 1, 1)
         cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
-        center=0
-        area_percentage=0
-        rotation=0
+        center = np.array([0.0, 0.0])
+        area_percentage = 0
+        rotation = 0
         if len(cnt) > 0:
             rect = cv2.minAreaRect(cnt[0])
             angle = rect[2]
@@ -183,33 +198,122 @@ class rozum_real:
             box = np.int0(box)
             center = np.average(box, axis=0)
             area = cv2.contourArea(cnt[0])
-            area_percentage=area/(self.w*self.h)
-            rotation = abs(angle)
-        # print(center)
-        return center,area_percentage,rotation
+            area_percentage = area / (640 * 480)
+            rotation = abs(angle)/90
+        return center, area_percentage, rotation
 
     def get_reward(self, img):
-        reward = -0.1
+        reward = -0.01
         done = False
         if self.task_part == 0:
             center, area, rotation = self.image_processeing(img, self.goal_l, self.goal_u, [2, 2])
-            distance = np.linalg.norm(center - self.part_1_center)
+            obs = np.array([center[0]/640, center[1]/480, area, rotation])
+            distance = np.linalg.norm(center - self.part_1_center, axis=-1)
             area_difference = abs(area - self.part_1_area)
             # print(distance, area_difference, rotation)
-            if distance < 3 and area_difference < 2 and rotation < 1:
+            if distance < 0.1 and area>self.part_1_area and rotation < 0.2:
+                self.reset()
                 self.task_part = 1
+                self.target=np.array([320.0/640,290.0/480,0.75,0.0])
                 reward += 2
-                self.robot.close_gripper()
-                return reward, done
+                self.det_goal = self.robot.get_joint_angles()
+                return obs, reward, done
         else:
             center, area, rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
-            distance = np.linalg.norm(center - self.part_2_center)
+            obs = np.array([center[0]/640, center[1]/480, area, rotation])
+            distance = np.linalg.norm(center - self.part_2_center, axis=-1)
             area_difference = abs(area - self.part_2_area)
             # print(distance,area_difference,rotation)
-            if distance < 5 and area_difference < 5 and rotation < 1:
+            if distance < 0.1 and area>self.part_2_area and rotation < 0.2:
                 reward += 2
                 done = True
+                self.robot.close_gripper()
+                self.angles = self.init_angles.copy()
+                self.robot.update_joint_angles(self.angles)
+                self.robot.send_joint_angles()
+                self.angles = self.det_goal.copy()
+                self.robot.update_joint_angles(self.angles)
+                self.robot.send_joint_angles()
                 self.robot.open_gripper()
-                return reward, done
-        reward -= (0.01 * distance + 0.05 * area_difference + 0.1 * rotation)
-        return reward, done
+                return obs, reward, done
+        if obs[2] < 0.01:
+            reward -= 2
+            # self.count += 1
+            # if self.count > 20:
+            #     self.count = 0
+            done = True
+            return obs, reward, done
+        reward=(1/(1+math.pow(distance,1.2)))*(1/(1+math.pow(area_difference,1.2)))*(1/(1+math.pow(rotation,1.2)))
+        return obs, reward, done
+
+    # def render(self):
+    #     im = self.get_image(self.render_handle)
+    #     return im
+
+    # def step(self, action):
+    #     action = np.clip(action, *self.action_bound)
+    #     for i in range(self.action_dim):
+    #         self.angles[i] += action[i]
+    #     self.robot.update_joint_angles(self.angles)
+    #     self.robot.send_joint_angles()
+    #     currents=self.currents
+    #     img=self.cam.read()
+    #     reward,done=self.get_reward(img)
+    #     return img,reward,done,{}
+    #
+    # def reset(self):
+    #     self.robot.update_joint_angles(self.init_angles)
+    #     self.robot.send_joint_angles()
+    #     img=self.cam.read()
+    #     currents=self.currents
+    #     return img
+    #
+    # def image_processeing(self,img,lower,upper,num_iter):
+    #     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    #     binary = cv2.inRange(hsv, lower, upper)
+    #     binary = cv2.erode(binary, self.er_kernel, iterations=num_iter[0])
+    #     binary = cv2.dilate(binary, self.di_kernel, iterations=num_iter[1])
+    #     cnt, _ = cv2.findContours(binary, 1, 1)
+    #     cnt = sorted(cnt, key=cv2.contourArea, reverse=True)
+    #     center=0
+    #     area_percentage=0
+    #     rotation=0
+    #     if len(cnt) > 0:
+    #         rect = cv2.minAreaRect(cnt[0])
+    #         angle = rect[2]
+    #         if angle < -45:
+    #             angle += 90
+    #         box = cv2.boxPoints(rect)
+    #         box = np.int0(box)
+    #         center = np.average(box, axis=0)
+    #         area = cv2.contourArea(cnt[0])
+    #         area_percentage=area/(self.w*self.h)
+    #         rotation = abs(angle)
+    #     # print(center)
+    #     return center,area_percentage,rotation
+    #
+    # def get_reward(self, img):
+    #     reward = -0.1
+    #     done = False
+    #     if self.task_part == 0:
+    #         center, area, rotation = self.image_processeing(img, self.goal_l, self.goal_u, [2, 2])
+    #         distance = np.linalg.norm(center - self.part_1_center)
+    #         area_difference = abs(area - self.part_1_area)
+    #         # print(distance, area_difference, rotation)
+    #         if distance < 3 and area_difference < 2 and rotation < 1:
+    #             self.task_part = 1
+    #             reward += 2
+    #             self.robot.close_gripper()
+    #             return reward, done
+    #     else:
+    #         center, area, rotation = self.image_processeing(img, self.cube_l, self.cube_u, [2, 2])
+    #         distance = np.linalg.norm(center - self.part_2_center)
+    #         area_difference = abs(area - self.part_2_area)
+    #         # print(distance,area_difference,rotation)
+    #         if distance < 5 and area_difference < 5 and rotation < 1:
+    #             reward += 2
+    #             done = True
+    #             self.robot.open_gripper()
+    #             return reward, done
+    #     reward -= (0.01 * distance + 0.05 * area_difference + 0.1 * rotation)
+    #     return reward, done
