@@ -23,10 +23,15 @@ class ExponentialReward(Reward):
             self.W = Param(np.reshape(W, (state_dim, state_dim)), trainable=False)
         else:
             self.W = Param(np.eye(state_dim), trainable=False)
-        if t is not None:
-            self.t = Param(np.reshape(t, (1, state_dim)), trainable=False)
-        else:
-            self.t = Param(np.zeros((1, state_dim)), trainable=False)
+        self.t=t
+        # if t is not None:
+        #     self.t = Param(np.reshape(t, (1, state_dim)), trainable=False)
+        # else:
+        #     self.t = Param(np.zeros((1, state_dim)), trainable=False)
+
+    def update_target(self,t):
+        # self.t.assign(np.reshape(t, (1, self.state_dim)))
+        self.t=t
 
     @params_as_tensors
     def compute_reward(self, m, s):

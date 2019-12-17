@@ -23,13 +23,17 @@ float_type = gpflow.settings.dtypes.float_type
 
 np.random.seed(0)
 
+# weights = np.diag([5.0, 5.0, 0.0, 0.0])
+reward = ExponentialReward(3, t=env.target)#, W=weights)
+
 i=0
 def rollout(env,T, random=False,trial=0):
     print("colect rollout")
     start=time.time()
     X = []
     Y = []
-    x=env.reset()
+    _=env.reset()
+    x=env.pose
     tt=[]
     rewards=[]
     distances=[]
@@ -38,11 +42,18 @@ def rollout(env,T, random=False,trial=0):
             u = env.sample_action()
         else:
             u = pilco.compute_action(x[None, :])[0, :]
-        new_x,reward,done,_ = env.step(u)
+        _,r,done,new_target = env.step(u)
+        new_x=env.pose
+        print(new_x)
+        if new_target:
+            reward.update_target(env.target)
         # print(new_x)
         tt.append(t)
-        distance=np.linalg.norm(new_x[:2]-env.target[:2])
-        rewards.append(reward)
+        distance=np.linalg.norm(new_x-env.target)
+        if done or len(rewards)==0:
+            rewards.append(r)
+        else:
+            rewards.append(rewards[-1]+r)
         distances.append(distance)
         X.append(np.hstack((x, u)))
         Y.append(new_x-x)
@@ -50,6 +61,7 @@ def rollout(env,T, random=False,trial=0):
         if done:
             x=env.reset()
             time.sleep(2)
+            break
     plt.plot(tt, rewards)
     plt.title("reward - Trial %d" %trial)
     plt.xlabel("t")
@@ -96,7 +108,7 @@ def plot(pilco,X,Y,T,trial):
         axes[i].fill_between(range(len(y_pred_test)),
                          y_pred_test[:, 0] - 2 * np.sqrt(var_pred_test[:, 0]),
                          y_pred_test[:, 0] + 2 * np.sqrt(var_pred_test[:, 0]), alpha=0.3)
-        if i==3: break
+        if i==2: break
 
     plt.savefig("onep%d.png" % trial)
     plt.show()
@@ -117,7 +129,7 @@ def plot(pilco,X,Y,T,trial):
         axes[i].fill_between(range(T - 1),
                          m_p[0:T - 1, i] - 2 * np.sqrt(S_p[0:T - 1, i, i]),
                          m_p[0:T - 1, i] + 2 * np.sqrt(S_p[0:T - 1, i, i]), alpha=0.2)
-        if i == 3: break
+        if i == 2: break
 
     plt.savefig("multistep%d.png" % trial)
     plt.show()
@@ -127,21 +139,19 @@ with tf.Session() as sess:
     p_start=time.time()
     T=50
     num_basis_functions = 100
-    max_action = 5
+    max_action = 2
     time_on_real_robot = 0
-    X,Y,t=rollout(env,100,random=True,trial=0)
+    X,Y,t=rollout(env,120,random=True,trial=0)
     time_on_real_robot += t
     state_dim = Y.shape[1]
     # print(state_dim)
     control_dim = X.shape[1] - Y.shape[1]
     # print(control_dim)
     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
-    weights = np.diag([3.0, 3.0, 0.5,1.0])
-    reward = ExponentialReward(4,t=env.target,W=weights)
     print("making model")
     pilco=PILCO(X,Y,controller=controller,reward=reward)
     plot(pilco,X,Y,T,0)
-    n=12
+    n=20
     t_model=0
     t_policy=0
     print("start the loop")
@@ -160,10 +170,8 @@ with tf.Session() as sess:
         X_,Y_,t=rollout(env,T,trial=i)
         time_on_real_robot += t
         plot(pilco,X_,Y_,T,i)
-        X=np.vstack((X,X_[:T, :]))
-        X=X[:3*T]
-        Y=np.vstack((Y,Y_[:T, :]))
-        Y=Y[:3*T]
+        X=np.vstack((X[120:, :],X_[:, :]))
+        Y=np.vstack((Y[120:, :],Y_[:, :]))
         pilco.mgpr.set_XY(X,Y)
     print("t_robot= %.2f s" %time_on_real_robot)
     print("t_model= %.2f s" %t_model)
