@@ -31,6 +31,8 @@ class ExponentialReward(Reward):
     def update_target(self,t):
         self.t.assign(np.reshape(t, (1, self.state_dim)))
         # self.t=t
+    def update_weights(self,w):
+        self.W.assign(np.reshape(w, (self.state_dim, self.state_dim)))
 
     @params_as_tensors
     def compute_reward(self, m, s):
@@ -44,8 +46,8 @@ class ExponentialReward(Reward):
         Output S  : [1, 1]
         '''
         # for robot arm
-        m=m[:,:3]
-        s=s[:3,:3]
+        # m=m[:,:4]
+        # s=s[:4,:4]
 
         SW = s @ self.W
 

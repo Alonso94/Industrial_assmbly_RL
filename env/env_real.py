@@ -43,7 +43,8 @@ class Rozum:
         position = np.array([point["x"], point["y"], point["z"]])
         rot = pose_info["rotation"]
         orientation = np.array([rot["roll"], rot["pitch"], rot["yaw"]])
-        return position*10
+        return np.concatenate([position,orientation],axis=None)
+        # return position
 
     def send_position(self):
         # speed 10
@@ -132,7 +133,7 @@ class rozum_real:
         self.part_1_area=0.25
         self.part_2_area=0.75
         # self.target=np.array([300.0/640,335.0/480,0.25,0.0])
-        self.target = np.array([-0.278, 0.41285, 0.4087])*10
+        self.target = np.array([-0.278, 0.41285, 0.4087,0.0])#,0.0,-3.14,-1.58])
         self.count=0
 
         self.currents_thread=Thread(target=self.current_reader)
@@ -160,20 +161,20 @@ class rozum_real:
     def step(self, action):
         action = np.clip(action, *self.action_bound)
         for i in range(self.action_dim):
-            self.angles[i] += action[i]
+            self.angles[i] += action[i]*20
         self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
         img=self.cam.read()
         obs, reward, done, new_target= self.get_reward(img)
         self.angles = self.robot.get_joint_angles()
         self.pose=self.robot.get_position()
-        s = np.concatenate((self.pose,self.angles), axis=None)
+        s = np.concatenate([self.pose-self.target], axis=None)
         return s, reward, done, new_target
 
     def reset(self):
         self.task_part = 0
         self.angles=self.init_angles.copy()
-        self.target = np.array([-0.278, 0.41285, 0.4087])*10
+        self.target = np.array([-0.278, 0.41285, 0.4087,0.0,-3.14,-1.58])
         self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
         img=self.cam.read()
@@ -182,7 +183,7 @@ class rozum_real:
         obs = np.array([center[0]/640, center[1]/480, area, rotation])
         self.pose=self.robot.get_position()
         # print(self.pose)
-        s = np.concatenate((self.pose,self.angles), axis=None)
+        s = np.concatenate([self.pose-self.target], axis=None)
         return s
 
     def image_processeing(self, img, lower, upper, num_iter):
@@ -220,10 +221,11 @@ class rozum_real:
             distance = np.linalg.norm(center - self.part_1_center, axis=-1)
             area_difference = abs(area - self.part_1_area)
             # print(distance, area_difference, rotation)
-            if distance < 0.1 and area>self.part_1_area and rotation < 0.2:
+            # if distance < 0.1 and area>self.part_1_area and rotation < 0.2:
+            if np.linalg.norm(self.pose-self.target) <0.005:
                 self.reset()
                 self.sample_actiontask_part = 1
-                self.target=np.array([-0.3475, 0.2023, 0.2044])*10
+                self.target=np.array([-0.3475, 0.2023, 0.2044,0.0,-3.14,-1.58])
                 reward += 2
                 self.det_goal = self.robot.get_joint_angles()
                 new_target=True
@@ -234,7 +236,8 @@ class rozum_real:
             distance = np.linalg.norm(center - self.part_2_center, axis=-1)
             area_difference = abs(area - self.part_2_area)
             # print(distance,area_difference,rotation)
-            if distance < 0.1 and area>self.part_2_area and rotation < 0.2:
+            # if distance < 0.1 and area>self.part_2_area and rotation < 0.2:
+            if np.linalg.norm(self.pose[:4]- self.target) < 0.005:
                 reward += 2
                 done = True
                 self.robot.close_gripper()
@@ -245,18 +248,18 @@ class rozum_real:
                 self.robot.update_joint_angles(self.angles)
                 self.robot.send_joint_angles()
                 self.robot.open_gripper()
-                self.target = np.array([-0.278, 0.41285, 0.4087])*10
+                self.target = np.array([-0.278, 0.41285, 0.4087,0.0,-3.14,-1.58])
                 new_target = True
                 return obs, reward, done,new_target
-        if obs[2] < 0.01:
-            reward -= 2
-            # self.count += 1
-            # if self.count > 20:
-            #     self.count = 0
-            done = True
-            self.target = np.array([-0.278, 0.41285, 0.4087])*10
-            new_target = True
-            return obs, reward, done,new_target
+        # if obs[2] < 0.01:
+        #     reward -= 2
+        #     # self.count += 1
+        #     # if self.count > 20:
+        #     #     self.count = 0
+        #     # done = True
+        #     self.target = np.array([-0.278, 0.41285, 0.4087,0.0,-3.14,-1.58])
+        #     new_target = True
+        #     return obs, reward, done,new_target
         reward=(1/(1+math.pow(distance,1.2)))*(1/(1+math.pow(area_difference,1.2)))*(1/(1+math.pow(rotation,1.2)))
         return obs, reward, done,new_target
 
