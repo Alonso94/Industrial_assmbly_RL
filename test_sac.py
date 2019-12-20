@@ -1,4 +1,4 @@
-from env.env_real import rozum_real
+from env.env_real_sac import rozum_real
 env=rozum_real()
 
 import gym
@@ -19,9 +19,9 @@ from stable_baselines import SAC
 from stable_baselines import results_plotter
 
 os.chdir("/")
-model = SAC.load("/home/ali/Industrial_assmbly_RL/sac_rozum.zip",env=env)
+model = SAC.load("/home/ali/Industrial_assmbly_RL/sac_rozum_new.zip",env=env)
 # print(model.get_parameters())
-model.learn(total_timesteps=1000, log_interval=10)#,tb_log_name="stage2")
+# model.learn(total_timesteps=1000, log_interval=10)#,tb_log_name="stage2")
 # model.save("sac_rozum2")
 print(model.action_space)
 print(model.action_space)

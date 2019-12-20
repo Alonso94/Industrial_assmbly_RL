@@ -1,16 +1,10 @@
-from env.env_real import rozum_real
-env=rozum_real()
-
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 import numpy as np
 import gym
 import tensorflow as tf
 import gpflow
 from gpflow import autoflow
 from gym.wrappers import Monitor
-
+from env.env_real import rozum_real
 from algo.pilco import PILCO
 
 from algo.controller import RbfController
@@ -23,56 +17,37 @@ float_type = gpflow.settings.dtypes.float_type
 
 np.random.seed(0)
 
-# weights = np.diag([5.0, 5.0, 0.0, 0.0])
-reward = ExponentialReward(3, t=env.target)#, W=weights)
-
 i=0
-def rollout(env,T, random=False,trial=0):
-    print("colect rollout")
+def rollout(env,T, reward, random=False,trial=0):
     start=time.time()
     X = []
     Y = []
-    _=env.reset()
-    x=env.pose
+    x=env.reset()
     tt=[]
+    env.render()
     rewards=[]
-    distances=[]
     for t in range(T):
         if random:
-            u = env.sample_action()
+            u = np.random.rand(7)*10-5
         else:
             u = pilco.compute_action(x[None, :])[0, :]
-        _,r,done,new_target = env.step(u)
-        new_x=env.pose
-        print(new_x)
+        new_x,r,done,new_target = env.step(u)
         if new_target:
             reward.update_target(env.target)
-        # print(new_x)
         tt.append(t)
-        distance=np.linalg.norm(new_x-env.target)
-        if done or len(rewards)==0:
-            rewards.append(r)
-        else:
-            rewards.append(rewards[-1]+r)
-        distances.append(distance)
+        distance=np.linalg.norm(new_x[:3]-env.target)
+        rewards.append(distance)
+        env.render()
         X.append(np.hstack((x, u)))
         Y.append(new_x-x)
         x=new_x
-        if done:
-            x=env.reset()
-            time.sleep(2)
+        if np.linalg.norm(new_x[:3]-env.target) <0.05:
             break
     plt.plot(tt, rewards)
-    plt.title("reward - Trial %d" %trial)
+    plt.title("distance to goal - Trial %d" %trial)
     plt.xlabel("t")
     plt.ylabel("d")
-    plt.savefig("reward%d.png"%trial)
-    plt.show()
-    plt.plot(tt, distances)
-    plt.title("distance to goal - Trial %d" % trial)
-    plt.xlabel("t")
-    plt.ylabel("d")
-    plt.savefig("dist%d.png" % trial)
+    plt.savefig("dist%d.png"%trial)
     plt.show()
     end=time.time()
     print ("time on real robot= %.1f s"%(end-start))
@@ -98,7 +73,7 @@ def reward_wrapper(reward, m, s):
     return reward.compute_reward(m, s)
 
 def plot(pilco,X,Y,T,trial):
-    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(12, 6))
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 6))
     axes[0].set_title('One step prediction - Trial#%d' % trial)
     axes[2].set_xlabel('t')
     axes[1].set_ylabel('x')
@@ -120,7 +95,7 @@ def plot(pilco,X,Y,T,trial):
         m_h, S_h, _ = predict_trajectory_wrapper(pilco, m_init, S_init, h)
         m_p[h, :], S_p[h, :, :] = m_h[:], S_h[:, :]
 
-    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(12, 6))
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 6))
     axes[0].set_title('Multi-step prediction - Trial#%d' % trial)
     axes[2].set_xlabel('t')
     axes[1].set_ylabel('x')
@@ -135,29 +110,27 @@ def plot(pilco,X,Y,T,trial):
     plt.show()
 
 with tf.Session() as sess:
-    print("Starting")
     p_start=time.time()
-    T=50
-    num_basis_functions = 100
-    max_action = 2
+    # target=np.array([1.2,0.38,0.38])
+    env = rozum_real()
+    target=env.target
+    T=25
+    num_basis_functions = 50
+    max_action = 5
     time_on_real_robot = 0
-    X,Y,t=rollout(env,120,random=True,trial=0)
+    reward = ExponentialReward(3, t=target)
+    X,Y,t=rollout(env,T,reward,random=True,trial=0)
     time_on_real_robot += t
     state_dim = Y.shape[1]
-    # print(state_dim)
     control_dim = X.shape[1] - Y.shape[1]
-    # print(control_dim)
     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
-    print("making model")
     pilco=PILCO(X,Y,controller=controller,reward=reward)
     plot(pilco,X,Y,T,0)
-    n=20
+    n=12
     t_model=0
     t_policy=0
-    print("start the loop")
     for i in range(1,n):
         env.reset()
-        time.sleep(2)
         t1 = time.time()
         pilco.optimize_models()
         t2 = time.time()
@@ -167,13 +140,199 @@ with tf.Session() as sess:
         t3 = time.time()
         t_policy+=t3-t2
         print("policy optimization done!")
-        X_,Y_,t=rollout(env,T,trial=i)
+        X_,Y_,t=rollout(env,T,reward,trial=i)
         time_on_real_robot += t
         plot(pilco,X_,Y_,T,i)
-        X=np.vstack((X[120:, :],X_[:, :]))
-        Y=np.vstack((Y[120:, :],Y_[:, :]))
+        X=np.vstack((X,X_[:T, :]))
+        X=X[:2*T]
+        Y=np.vstack((Y,Y_[:T, :]))
+        Y=Y[:2*T]
         pilco.mgpr.set_XY(X,Y)
     print("t_robot= %.2f s" %time_on_real_robot)
     print("t_model= %.2f s" %t_model)
     print("t_policy= %.2f s" %t_policy)
     print("program running time = %d s" %(time.time()-p_start))
+# from env.env_real import rozum_real
+# env=rozum_real()
+#
+# import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+#
+# import numpy as np
+# import gym
+# import tensorflow as tf
+# import gpflow
+# from gpflow import autoflow
+# from gym.wrappers import Monitor
+#
+# from algo.pilco import PILCO
+#
+# from algo.controller import RbfController
+# from algo.reward import ExponentialReward
+# import time
+# import matplotlib
+# import matplotlib.pyplot as plt
+#
+# float_type = gpflow.settings.dtypes.float_type
+#
+# np.random.seed(0)
+#
+# # weights = np.diag([5.0, 5.0, 0.0, 0.0])
+# reward = ExponentialReward(3, t=env.target)#, W=weights)
+#
+# i=0
+# def rollout(env,T, random=False,trial=0):
+#     print("colect rollout")
+#     start=time.time()
+#     X = []
+#     Y = []
+#     x=env.reset()
+#     # x=env.pose
+#     tt=[]
+#     rewards=[]
+#     distances=[]
+#     for t in range(T):
+#         if random:
+#             u = env.sample_action()
+#         else:
+#             u = pilco.compute_action(x[None, :])[0, :]
+#         new_x,r,done,new_target = env.step(u)
+#         # new_x=env.pose
+#         # print(new_x)
+#         if new_target:
+#             reward.update_target(env.target)
+#         # print(new_x)
+#         tt.append(t)
+#         distance=np.linalg.norm(new_x[:3]-env.target)
+#         if done or len(rewards)==0:
+#             rewards.append(r)
+#         else:
+#             rewards.append(rewards[-1]+r)
+#         distances.append(distance)
+#         X.append(np.hstack((x, u)))
+#         Y.append(new_x-x)
+#         x=new_x
+#         if done:
+#             x=env.reset()
+#             time.sleep(2)
+#             if trial!=0:
+#                 break
+#     plt.plot(tt, rewards)
+#     plt.title("reward - Trial %d" %trial)
+#     plt.xlabel("t")
+#     plt.ylabel("d")
+#     plt.savefig("reward%d.png"%trial)
+#     plt.show()
+#     plt.plot(tt, distances)
+#     plt.title("distance to goal - Trial %d" % trial)
+#     plt.xlabel("t")
+#     plt.ylabel("d")
+#     plt.savefig("dist%d.png" % trial)
+#     plt.show()
+#     end=time.time()
+#     print ("time on real robot= %.1f s"%(end-start))
+#     return np.stack(X),np.stack(Y),end-start
+#
+# @autoflow((float_type,[None, None]), (float_type,[None, None]))
+# def predict_one_step_wrapper(mgpr, m, s):
+#     return mgpr.predict_on_noisy_inputs(m, s)
+#
+#
+# @autoflow((float_type,[None, None]), (float_type,[None, None]), (np.int32, []))
+# def predict_trajectory_wrapper(pilco, m, s, horizon):
+#     return pilco.predict(m, s, horizon)
+#
+#
+# @autoflow((float_type,[None, None]), (float_type,[None, None]))
+# def compute_action_wrapper(pilco, m, s):
+#     return pilco.controller.compute_action(m, s)
+#
+#
+# @autoflow((float_type, [None, None]), (float_type, [None, None]))
+# def reward_wrapper(reward, m, s):
+#     return reward.compute_reward(m, s)
+#
+# def plot(pilco,X,Y,T,trial):
+#     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 6))
+#     axes[0].set_title('One step prediction - Trial#%d' % trial)
+#     axes[2].set_xlabel('t')
+#     axes[1].set_ylabel('x')
+#     for i, m in enumerate(pilco.mgpr.models):
+#         y_pred_test, var_pred_test = m.predict_y(X)
+#         axes[i].plot(range(len(y_pred_test)), y_pred_test, Y[:, i])
+#         axes[i].fill_between(range(len(y_pred_test)),
+#                          y_pred_test[:, 0] - 2 * np.sqrt(var_pred_test[:, 0]),
+#                          y_pred_test[:, 0] + 2 * np.sqrt(var_pred_test[:, 0]), alpha=0.3)
+#         if i==2: break
+#
+#     plt.savefig("onep%d.png" % trial)
+#     plt.show()
+#     m_p = np.zeros((T, state_dim))
+#     S_p = np.zeros((T, state_dim, state_dim))
+#     m_init = X[0:1, 0:state_dim]
+#     S_init = np.diag(np.ones(state_dim) * 0.1)
+#     for h in range(T):
+#         m_h, S_h, _ = predict_trajectory_wrapper(pilco, m_init, S_init, h)
+#         m_p[h, :], S_p[h, :, :] = m_h[:], S_h[:, :]
+#
+#     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 6))
+#     axes[0].set_title('Multi-step prediction - Trial#%d' % trial)
+#     axes[2].set_xlabel('t')
+#     axes[1].set_ylabel('x')
+#     for i in range(state_dim):
+#         axes[i].plot(range(T - 1), m_p[0:T - 1, i], X[1:T, i])  # can't use Y_new because it stores differences (Dx)
+#         axes[i].fill_between(range(T - 1),
+#                          m_p[0:T - 1, i] - 2 * np.sqrt(S_p[0:T - 1, i, i]),
+#                          m_p[0:T - 1, i] + 2 * np.sqrt(S_p[0:T - 1, i, i]), alpha=0.2)
+#         if i == 2: break
+#
+#     plt.savefig("multistep%d.png" % trial)
+#     plt.show()
+#
+# with tf.Session() as sess:
+#     print("Starting")
+#     p_start=time.time()
+#     T=50
+#     num_basis_functions = 50
+#     max_action = 5
+#     time_on_real_robot = 0
+#     X,Y,t=rollout(env,T,random=True,trial=0)
+#     time_on_real_robot += t
+#     state_dim = Y.shape[1]
+#     # print(state_dim)
+#     control_dim = X.shape[1] - Y.shape[1]
+#     # print(control_dim)
+#     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
+#     print("making model")
+#     pilco=PILCO(X,Y,controller=controller,reward=reward)
+#     plot(pilco,X,Y,T,0)
+#     n=20
+#     t_model=0
+#     t_policy=0
+#     print("start the loop")
+#     for i in range(1,n):
+#         env.reset()
+#         time.sleep(2)
+#         t1 = time.time()
+#         pilco.optimize_models()
+#         t2 = time.time()
+#         t_model+=t2-t1
+#         print("model optimization done!")
+#         pilco.optimize_policy()
+#         t3 = time.time()
+#         t_policy+=t3-t2
+#         print("policy optimization done!")
+#         X_,Y_,t=rollout(env,T,trial=i)
+#         time_on_real_robot += t
+#         plot(pilco,X_,Y_,T,i)
+#         # X=np.vstack((X[:, :],X_[:, :]))
+#         # Y=np.vstack((Y[:, :],Y_[:, :]))
+#         # X=np.vstack((X,X_[:T, :]))
+#         # X=X[:2*T]
+#         # Y=np.vstack((Y,Y_[:T, :]))
+#         # Y=Y[:2*T]
+#         pilco.mgpr.set_XY(X,Y)
+#     print("t_robot= %.2f s" %time_on_real_robot)
+#     print("t_model= %.2f s" %t_model)
+#     print("t_policy= %.2f s" %t_policy)
+#     print("program running time = %d s" %(time.time()-p_start))

@@ -137,7 +137,7 @@ class VideoCapture:
             # else:
             #     frame = self.image_processeing(frame,self.cube_l,self.cube_u,[2,2])
             # self.out.write(frame)
-            print(self.get_reward(frame))
+            # print(self.get_reward(frame))
             cv2.imshow("1",frame)
             cv2.waitKey(25)
 
@@ -161,6 +161,7 @@ try:
         [-222.15493774414062, -101.87278747558594, -70.3543701171875, -98.31298828125, 89.967041015625,
          -42.51708984375]), SPEED)
     robot.await_motion()
+    print(robot.get_position())
     # x=input()
     # task_part=1
     # robot.set_position(position([-0.164, 0.265, 0.601], [-3.1241393089294434, -0.122173048555851, -1.6057028770446777]), SPEED, MT_JOINT)
@@ -175,6 +176,7 @@ try:
     robot.await_motion()
     robot.open_gripper()
     # x=input()
+    print(robot.get_position())
     robot.close_gripper()
     robot.set_pose(pose(
         [-210.006103515625, -110.00267028808594, -0.002044677734375, -160.0067138671875, 90.05218505859375,
