@@ -42,7 +42,9 @@ class Rozum:
         point = pose_info["point"]
         position = np.array([point["x"], point["y"], point["z"]])
         rot = pose_info["rotation"]
-        orientation = np.array([rot["roll"], rot["pitch"], rot["yaw"]])
+        orientation = np.array([np.sin(rot["roll"]),np.cos(rot["roll"]),
+                                np.sin(rot["pitch"]),np.cos(rot["pitch"]),
+                                np.sin(rot["yaw"]),np.cos(rot["yaw"])])
         return np.concatenate([position,orientation],axis=None)
         # return position
 
@@ -133,7 +135,10 @@ class rozum_real:
         self.part_1_area=0.25
         self.part_2_area=0.75
         # self.target=np.array([300.0/640,335.0/480,0.25,0.0])
-        self.target = np.array([-0.278, 0.41285, 0.4087,0.0])#,0.0,-3.14,-1.58])
+        self.target = np.array([-0.278, 0.41285, 0.4087,
+                                np.sin(0.0),np.cos(0.0),
+                                np.sin(-3.14),np.cos(-3.14),
+                                np.sin(-1.58),np.cos(-1.58)])#,0.0,-3.14,-1.58])
         self.count=0
 
         self.currents_thread=Thread(target=self.current_reader)
@@ -174,7 +179,10 @@ class rozum_real:
     def reset(self):
         self.task_part = 0
         self.angles=self.init_angles.copy()
-        self.target = np.array([-0.278, 0.41285, 0.4087,0.0,-3.14,-1.58])
+        self.target = np.array([-0.278, 0.41285, 0.4087,
+                                np.sin(0.0), np.cos(0.0),
+                                np.sin(-3.14), np.cos(-3.14),
+                                np.sin(-1.58), np.cos(-1.58)])
         self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
         img=self.cam.read()
@@ -225,7 +233,10 @@ class rozum_real:
             if np.linalg.norm(self.pose-self.target) <0.005:
                 self.reset()
                 self.sample_actiontask_part = 1
-                self.target=np.array([-0.3475, 0.2023, 0.2044,0.0,-3.14,-1.58])
+                self.target = np.array([-0.3475, 0.2023, 0.2044,
+                                        np.sin(0.0), np.cos(0.0),
+                                        np.sin(-3.14), np.cos(-3.14),
+                                        np.sin(-1.58), np.cos(-1.58)])
                 reward += 2
                 self.det_goal = self.robot.get_joint_angles()
                 new_target=True
@@ -248,7 +259,10 @@ class rozum_real:
                 self.robot.update_joint_angles(self.angles)
                 self.robot.send_joint_angles()
                 self.robot.open_gripper()
-                self.target = np.array([-0.278, 0.41285, 0.4087,0.0,-3.14,-1.58])
+                self.target = np.array([-0.278, 0.41285, 0.4087,
+                                        np.sin(0.0), np.cos(0.0),
+                                        np.sin(-3.14), np.cos(-3.14),
+                                        np.sin(-1.58), np.cos(-1.58)])
                 new_target = True
                 return obs, reward, done,new_target
         # if obs[2] < 0.01:

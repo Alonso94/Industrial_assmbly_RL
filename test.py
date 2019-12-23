@@ -114,7 +114,7 @@ def plot(pilco,X,Y,T,trial):
 
 with tf.Session() as sess:
     p_start=time.time()
-    target=np.array([0.0,0.0,0.0,0.0,0.0,0.0])
+    target=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
     env = rozum_real()
     T=25
     num_basis_functions = 50
@@ -125,7 +125,7 @@ with tf.Session() as sess:
     state_dim = Y.shape[1]
     control_dim = X.shape[1] - Y.shape[1]
     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
-    reward = ExponentialReward(6,t=target)
+    reward = ExponentialReward(9,t=target)
     pilco=PILCO(X,Y,controller=controller,reward=reward)
     plot(pilco,X,Y,T,0)
     n=4
