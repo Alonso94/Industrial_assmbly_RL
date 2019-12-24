@@ -121,7 +121,7 @@ class rozum_real:
         self.w = self.cam.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.h = self.cam.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         self.action_space = spaces.Box(low=-5, high=5, shape=[self.action_dim])
-        self.observation_space = spaces.Box(low=0, high=100, shape=[self.action_dim + 4 + 4], dtype=np.float64)
+        self.observation_space = spaces.Box(low=0, high=100, shape=[self.action_dim + 4], dtype=np.float64)
 
 
         self.goal_l= (80, 40, 0)
@@ -193,8 +193,8 @@ class rozum_real:
         obs, reward, done,new_target = self.get_reward(img)
         angles = self.robot.get_joint_angles()
         self.t += 1
-        self.s=np.concatenate((obs,angles,self.target),axis=None)
-        self.pose=np.array(self.robot.get_position()[0])
+        self.s=np.concatenate((obs-self.target,angles),axis=None)
+        # self.pose=np.array(self.robot.get_position()[0])
         return self.s, reward, done, {}
 
     def reset(self):
@@ -208,8 +208,8 @@ class rozum_real:
         currents=self.currents.copy()
         center, area, rotation,binary= self.image_processing(img, self.goal_l, self.goal_u, [2, 2])
         obs = np.array([center[0]/640, center[1]/480, area, rotation])
-        self.s = np.concatenate((obs, self.angles, self.target), axis=None)
-        self.pose = np.array(self.robot.get_position()[0])
+        self.s = np.concatenate((obs-self.target,self.angles), axis=None)
+        # self.pose = np.array(self.robot.get_position()[0])
         return self.s
 
     def image_processing(self, img, lower, upper, num_iter):

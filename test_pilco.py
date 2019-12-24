@@ -13,7 +13,7 @@ import time
 import matplotlib
 import matplotlib.pyplot as plt
 
-from env.env_real import rozum_real
+from env.env_real_pilco import rozum_real
 
 float_type = gpflow.settings.dtypes.float_type
 
@@ -26,15 +26,22 @@ def rollout(env,T, random=False,trial=0):
     X = []
     Y = []
     x=env.reset()
+    s=x
     tt=[]
     env.render()
     rewards=[]
     for t in range(T):
         if random:
             u = np.random.rand(7)*0.6-0.3
+            new_x,s2,_,done,new_target= env.random_step(u)
+            X.append(np.hstack((s2, u)))
+            Y.append(s2 - s)
+            s=s2
         else:
             u = pilco.compute_action(x[None, :])[0, :]
-        new_x,_,done,_= env.step(u)
+        new_x,_,done,new_target= env.step(u)
+        # if new_target:
+        #     continue
         tt.append(t)
         distance=np.linalg.norm(new_x[:3]-env.target[:3])
         rewards.append(distance)
@@ -114,21 +121,22 @@ def plot(pilco,X,Y,T,trial):
 
 with tf.Session() as sess:
     p_start=time.time()
-    target=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
+    target=np.array([0.0,0.0,0.0,0.0,0.0])#,0.0,0.0,0.0,0.0])
     env = rozum_real()
     T=25
-    num_basis_functions = 50
+    num_basis_functions = 100
     max_action = 0.3
-    time_on_real_robot = 0
-    X,Y,t=rollout(env,T,random=True,trial=0)
+    time_on_real_robot = 50
+    X,Y,t=rollout(env,50,random=True,trial=0)
     time_on_real_robot += t
     state_dim = Y.shape[1]
     control_dim = X.shape[1] - Y.shape[1]
     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
-    reward = ExponentialReward(9,t=target)
+    # weights=np.diag([5.0,5.0,5.0,0.0,2.0])#,0.0,0.0,0.0,0.0])
+    reward = ExponentialReward(5,t=target)#,W=weights)
     pilco=PILCO(X,Y,controller=controller,reward=reward)
     plot(pilco,X,Y,T,0)
-    n=4
+    n=10
     t_model=0
     t_policy=0
     for i in range(1,n):
@@ -145,10 +153,10 @@ with tf.Session() as sess:
         X_,Y_,t=rollout(env,T,trial=i)
         time_on_real_robot += t
         plot(pilco,X_,Y_,T,i)
-        X=np.vstack((X[:T,:],X_[:T, :]))
-        # X=X[:2*T]
-        Y=np.vstack((Y[:T,:],Y_[:T, :]))
-        # Y=Y[:2*T]
+        X=np.vstack((X[:-3*T,:],X_[:2*T, :]))
+        # X=X[:4*T]
+        Y=np.vstack((Y[:-3*T,:],Y_[:2*T, :]))
+        # Y=Y[:4*T]
         pilco.mgpr.set_XY(X,Y)
     print("t_robot= %.2f s" %time_on_real_robot)
     print("t_model= %.2f s" %t_model)
