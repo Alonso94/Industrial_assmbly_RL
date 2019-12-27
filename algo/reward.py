@@ -46,8 +46,8 @@ class ExponentialReward(Reward):
         Output S  : [1, 1]
         '''
         # for robot arm
-        # m=m[:,:4]
-        # s=s[:4,:4]
+        m=m[:,:9]
+        s=s[:9,:9]
 
         SW = s @ self.W
 

@@ -18,7 +18,9 @@ from env.env_real_pilco import rozum_real
 float_type = gpflow.settings.dtypes.float_type
 
 np.random.seed(0)
-
+target = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+weights = np.diag([1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+reward = ExponentialReward(9, t=target, W=weights)
 
 i=0
 def rollout(env,T, random=False,trial=0):
@@ -26,7 +28,7 @@ def rollout(env,T, random=False,trial=0):
     X = []
     Y = []
     x=env.reset()
-    s=x
+    s=x.copy()
     tt=[]
     env.render()
     rewards=[]
@@ -34,21 +36,27 @@ def rollout(env,T, random=False,trial=0):
         if random:
             u = np.random.rand(7)*0.6-0.3
             new_x,s2,_,done,new_target= env.random_step(u)
-            X.append(np.hstack((s2, u)))
+            X.append(np.hstack((s, u)))
             Y.append(s2 - s)
-            s=s2
+            s=s2.copy()
         else:
             u = pilco.compute_action(x[None, :])[0, :]
-        new_x,_,done,new_target= env.step(u)
+            new_x,_,done,new_target= env.step(u)
         # if new_target:
         #     continue
         tt.append(t)
         distance=np.linalg.norm(new_x[:3]-env.target[:3])
+        if distance<0.1:
+            weights = np.diag([1.0, 1.0, 1.0, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
+            reward.update_weights(weights)
+        if distance<0.2:
+            weights = np.diag([1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            reward.update_weights(weights)
         rewards.append(distance)
         env.render()
         X.append(np.hstack((x, u)))
         Y.append(new_x-x)
-        x=new_x
+        x=new_x.copy()
         # if np.linalg.norm(new_x[:3]-env.target) <0.05:
         #     break
         if done:
@@ -121,19 +129,16 @@ def plot(pilco,X,Y,T,trial):
 
 with tf.Session() as sess:
     p_start=time.time()
-    target=np.array([0.0,0.0,0.0,0.0,0.0])#,0.0,0.0,0.0,0.0])
     env = rozum_real()
     T=25
-    num_basis_functions = 100
+    num_basis_functions = 50
     max_action = 0.3
-    time_on_real_robot = 50
-    X,Y,t=rollout(env,50,random=True,trial=0)
+    time_on_real_robot = 0
+    X,Y,t=rollout(env,25,random=True,trial=0)
     time_on_real_robot += t
     state_dim = Y.shape[1]
     control_dim = X.shape[1] - Y.shape[1]
     controller = RbfController(state_dim,control_dim, num_basis_functions, max_action)
-    # weights=np.diag([5.0,5.0,5.0,0.0,2.0])#,0.0,0.0,0.0,0.0])
-    reward = ExponentialReward(5,t=target)#,W=weights)
     pilco=PILCO(X,Y,controller=controller,reward=reward)
     plot(pilco,X,Y,T,0)
     n=10
@@ -153,10 +158,10 @@ with tf.Session() as sess:
         X_,Y_,t=rollout(env,T,trial=i)
         time_on_real_robot += t
         plot(pilco,X_,Y_,T,i)
-        X=np.vstack((X[:-3*T,:],X_[:2*T, :]))
-        # X=X[:4*T]
-        Y=np.vstack((Y[:-3*T,:],Y_[:2*T, :]))
-        # Y=Y[:4*T]
+        X=np.concatenate((X,X_[:T,:]),axis=0)
+        Y=np.concatenate((Y,Y_[:T,:]),axis=0)
+        X=X[3*T:]
+        Y = Y[3 * T:]
         pilco.mgpr.set_XY(X,Y)
     print("t_robot= %.2f s" %time_on_real_robot)
     print("t_model= %.2f s" %t_model)

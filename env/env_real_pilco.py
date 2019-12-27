@@ -45,7 +45,9 @@ class Rozum:
         orientation = np.array([np.sin(rot["roll"]),np.cos(rot["roll"]),
                                 np.sin(rot["pitch"]),np.cos(rot["pitch"]),
                                 np.sin(rot["yaw"]),np.cos(rot["yaw"])])
-        return np.concatenate([position,np.sin(orientation[0]),np.cos(orientation[0])],axis=None)
+        return np.concatenate([position,np.sin(orientation[0]),np.cos(orientation[0]),
+                               np.sin(orientation[1]),np.cos(orientation[1]),
+                               np.sin(orientation[2]),np.cos(orientation[2])],axis=None)
         # return position
 
     def send_position(self):
@@ -135,10 +137,10 @@ class rozum_real:
         self.part_1_area=0.25
         self.part_2_area=0.75
         # self.target=np.array([300.0/640,335.0/480,0.25,0.0])
-        self.target = np.array([-0.278, 0.41285, 0.4087,#])#,
-                                np.sin(0.0),np.cos(0.0)])#,
-                                # np.sin(-3.14),np.cos(-3.14),
-                                # np.sin(-1.58),np.cos(-1.58)])#,0.0,-3.14,-1.58])
+        self.target = np.array([-0.278, 0.41285, 0.4087,  # ])#,
+                                np.sin(0.0), np.cos(0.0),  # ,
+                                np.sin(-3.14), np.cos(-3.14),
+                                np.sin(-1.58), np.cos(-1.58)])
         self.count=0
 
         self.currents_thread=Thread(target=self.current_reader)
@@ -173,12 +175,18 @@ class rozum_real:
         obs, reward, done, new_target = self.get_reward(img)
         self.angles = self.robot.get_joint_angles()
         self.pose = self.robot.get_position()
-        self.target = np.array([-0.278, 0.41285, 0.4087,#])#,
-                                np.sin(0.0), np.cos(0.0)])#,
-        s1 = np.concatenate([self.pose - self.target], axis=None)
-        self.target = np.array([-0.278, 0.41285, 0.4087,  # ])#,
-                                np.sin(0.0), np.cos(0.0)])  # ,
-        s2=np.concatenate([self.pose - self.target], axis=None)
+        target = np.array([-0.278, 0.41285, 0.4087,  # ])#,
+                           np.sin(0.0), np.cos(0.0),  # ,
+                           np.sin(-3.14), np.cos(-3.14),
+                           np.sin(-1.58), np.cos(-1.58)])
+        angles = [a *np.pi/180 for a in self.angles]
+        s1 = np.concatenate([self.pose - self.target, angles], axis=0)
+        target = np.array([-0.3475, 0.2023, 0.2044,  # ])#,
+                           np.sin(0.0), np.cos(0.0),  # ,
+                           np.sin(-3.14), np.cos(-3.14),
+                           np.sin(-1.58), np.cos(-1.58)])
+        angles = [a *np.pi/180 for a in self.angles]
+        s2 = np.concatenate([self.pose - self.target, angles], axis=0)
         return s1,s2, reward, done, new_target
 
     def step(self, action):
@@ -191,7 +199,8 @@ class rozum_real:
         obs, reward, done, new_target= self.get_reward(img)
         self.angles = self.robot.get_joint_angles()
         self.pose=self.robot.get_position()
-        s = np.concatenate([self.pose-self.target], axis=None)
+        angles = [a *np.pi/180 for a in self.angles]
+        s = np.concatenate([self.pose - self.target, angles], axis=0)
         return s, reward, done, new_target
 
     def reset(self):
@@ -200,14 +209,14 @@ class rozum_real:
         self.angles=self.init_angles.copy()
         if self.task_part==0:
             self.target = np.array([-0.278, 0.41285, 0.4087,#])#,
-                                    np.sin(0.0), np.cos(0.0)])#,
-                                    # np.sin(-3.14), np.cos(-3.14),
-                                    # np.sin(-1.58), np.cos(-1.58)])
+                                    np.sin(0.0), np.cos(0.0),#,
+                                    np.sin(-3.14), np.cos(-3.14),
+                                    np.sin(-1.58), np.cos(-1.58)])
         else:
             self.target = np.array([-0.3475, 0.2023, 0.2044,  # ])#,
-                                    np.sin(0.0), np.cos(0.0)])  # ,
-                                    # np.sin(-3.14), np.cos(-3.14),
-                                    # np.sin(-1.58), np.cos(-1.58)])
+                                    np.sin(0.0), np.cos(0.0),  # ,
+                                    np.sin(-3.14), np.cos(-3.14),
+                                    np.sin(-1.58), np.cos(-1.58)])
         self.robot.update_joint_angles(self.angles)
         self.robot.send_joint_angles()
         img=self.cam.read()
@@ -216,7 +225,8 @@ class rozum_real:
         obs = np.array([center[0]/640, center[1]/480, area, rotation])
         self.pose=self.robot.get_position()
         # print(self.pose)
-        s = np.concatenate([self.pose-self.target], axis=None)
+        angles=[a *np.pi/180 for a in self.angles]
+        s = np.concatenate([self.pose-self.target,angles], axis=0)
         # target = np.array([-0.278, 0.41285, 0.4087,  # ])#,
         #                         np.sin(0.0), np.cos(0.0)])  # ,
         # s2 = np.concatenate([self.pose - target], axis=None)
